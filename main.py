@@ -21,12 +21,13 @@ def main():
     FPS = 30
 
     SCALING = 4
-    DWELL = 3
+    DWELL = 4
 
     set_index = 0
     frame_set_start = set_index*4
     frame_set_end = frame_set_start+3
 
+    HP = 10
     WALK_SPEED = 4
     RUN_SPEED = 5
     JUMP_HEIGHT = 30
@@ -60,16 +61,18 @@ def main():
 
     class Player(pygame.sprite.Sprite):
         # Setup player Objects
-        def __init__(self, SCREEN, x, y, frames):
+        def __init__(self, screen, x, y, frames):
             pygame.sprite.Sprite.__init__(self)
-            self.SCREEN = SCREEN
-            self.x = x
-            self.y = y
+            self.screen = screen
             self.velx = 0
             self.vely = 0
             self.index = 0
+            self.health = HP
             self.frames = frames
-            self.rect = self.frames[self.index].get_rect()
+            self.image = self.frames[self.index]
+            self.rect = self.image.get_rect()
+            self.rect.x = x
+            self.rect.y = y
             self.DWELL_countdown = DWELL
             
         def advanceImage(self):
@@ -81,32 +84,106 @@ def main():
                     self.index = frame_set_start
 
         def draw(self):
-            self.SCREEN.blit(self.frames[self.index], 
-                            (int(self.x-self.rect.width/2),
-                            int(self.y-self.rect.height/2)))
+            self.screen.blit(self.frames[self.index], 
+                            (int(self.rect.x-self.rect.width/2),
+                            int(self.rect.y)))
         
         def gravity(self):
             self.vely += GRAVITY
-
-            if self.y > SCREENY-TY:
-                self.vely = 0
-                self.y = SCREENY-TY
-
-        def update(self):
-            self.y += self.vely
-
-            # Check scren bounds
-            if self.y < 0:
-                self.vely = 0
-                self.y = 0
-
-            if self.x > SCREENX and self.velx > 0:
-                self.x = 0
             
-            if self.x < 0 and self.velx > 0:
-                self.x = SCREENX
+        def update(self):
+            self.rect.y += self.vely
+
+            # Check scren bounds   
+            if self.rect.bottom > SCREENY-TY:
+                self.vely = 0
+                self.rect.bottom = SCREENY-TY         
+            if self.rect.top < 0:
+                self.vely = 0
+                self.rect.top = 0
+            if self.rect.left > SCREENX and self.velx > 0:
+                self.rect.right = 0
+            
+            if self.rect.right < 0 and self.velx > 0:
+                self.rect.left = SCREENX
+
+            # hit_list = pygame.sprite.spritecollide(self, enemy_list, False)
+            # for enemy in hit_list:
+            #     self.health-=128
+            #     print(self.health)
+
+    class Enemy:
+        def __init__(self, screen, x, y, frames):
+            pygame.sprite.Sprite.__init__(self)
+            self.screen = screen
+            self.velx = 0
+            self.vely = 0
+            self.index = 0
+            self.counter = 0
+            self.frames = frames
+            self.image = self.frames[self.index]
+            self.rect = self.image.get_rect()
+            self.rect.x = x
+            self.rect.y = y
+            self.DWELL_countdown = DWELL
+            
+        def advanceImage(self):
+            self.DWELL_countdown -=1
+            if self.DWELL_countdown < 0:
+                self.DWELL_countdown = DWELL
+                self.index = (self.index+1)%(frame_set_end+1)
+                if self.index<frame_set_start:
+                    self.index = frame_set_start
+
+        def draw(self):
+            self.screen.blit(self.frames[self.index], 
+                            (int(self.rect.x-self.rect.width/2),
+                            int(self.rect.y)))
+        
+        def gravity(self):
+            self.vely += GRAVITY
+            
+        def update(self):
+            self.rect.y += self.vely
+
+            # Check scren bounds   
+            if self.rect.bottom > SCREENY-TY:
+                self.vely = 0
+                self.rect.bottom = SCREENY-TY         
+            if self.rect.top < 0:
+                self.vely = 0
+                self.rect.top = 0
+            if self.rect.left > SCREENX and self.velx > 0:
+                self.rect.right = 0
+            
+            if self.rect.right < 0 and self.velx > 0:
+                self.rect.left = SCREENX
+
+        def move(self):
+            distance = 80
+            speed = 8
+
+            if self.counter >= 0 and self.counter <= distance:
+                self.rect.x += speed
+            elif self.counter >= distance and self.counter <= distance * 2:
+                self.rect.x -= speed
+            else:
+                self.counter = 0
+            self.counter += 1
+
+        
 
     class Level:
+        def bad(lvl, eloc):
+            if lvl == 1:
+                enemy = Enemy(SCREEN, eloc[0], eloc[1], gawainArt)
+                # enemy_list = pygame.sprite.Group()
+                # enemy_list.add(enemy)
+            if lvl == 2:
+                print("Level " + str(lvl))
+
+            return enemy
+        
         def ground(lvl, gloc, tx, ty):
             ground_list = pygame.sprite.Group()
             i = 0
@@ -126,9 +203,9 @@ def main():
             ploc = []
             i = 0
             if lvl == 1:
-                ploc.append((200, SCREENY - ty - 128, 3))
-                ploc.append((300, SCREENY - ty - 256, 3))
-                ploc.append((500, SCREENY - ty - 128, 4))
+                ploc.append((200, SCREENY - ty - 256, 8))
+                ploc.append((SCREENX/2-(2*TX), SCREENY - ty - 512, 8))
+                ploc.append((SCREENX-200-(5*TY), SCREENY - ty - 128, 8))
                 while i < len(ploc):
                     j = 0
                     while j <= ploc[i][2]:
@@ -147,13 +224,35 @@ def main():
     '''         
     Setup
     '''
+    def strip_from_sheet(sheet, rows, cols):
+        sheet = pygame.image.load(sheet).convert()
+        sheet.convert_alpha
+        sheet.set_colorkey(BLACK)
+        r = sheet.get_rect()
+        img_width = r.w/cols
+        img_height = r.h/rows
+
+        frames = []
+        for row in range(rows):
+            for col in range(cols):
+                rect = pygame.Rect(col*img_width, row*img_height, img_width, img_height)
+                frames.append(sheet.subsurface(rect))
+        return frames
+
+    def scale(image, rows, cols):
+        frames = strip_from_sheet(image, rows, cols)
+        dimensions = frames[0].get_rect()
+        dimensions = (int(dimensions.w*SCALING), int(dimensions.h*SCALING))
+        for i in range(len(frames)):
+            frames[i] = pygame.transform.scale(
+                                    frames[i],
+                                    dimensions)
+
+        return frames
+
     clock = pygame.time.Clock()
     pygame.init()
-    running = True
-
-    ARTHUR_PENDRAGON = pygame.image.load("images/arthurPendragon_.png").convert()
-    ARTHUR_PENDRAGON.convert_alpha
-    ARTHUR_PENDRAGON.set_colorkey(BLACK)
+    running = True    
 
     BACKDROP = pygame.image.load("images/stage.png")
     BACKDROPBOX = SCREEN.get_rect()
@@ -161,11 +260,27 @@ def main():
     TITLE = "Knights Crossing"
     ICON = pygame.image.load("images/icon.jpg")
 
+    # Adding players
+    aurthurPendragonArt = scale("images/arthurPendragon_.png", 6, 8)
+    gawainArt = scale("images/gawain_.png", 6, 8)
+    lancelotArt = scale("images/lancelot_.png", 6, 8)
+    # merlinArt = scale("images/merlin_.png", 5, 8) # Fix image starts
+
     GLOC = []
     i = 0
     while i <= (SCREENX / TX) + TX:
         GLOC.append(i * TX)
         i+=1
+
+    player = Player(SCREEN, SCREENX/2, SCREENY/2, lancelotArt)
+    player.rect.x -= player.rect.width/2
+    player.rect.y -= player.rect.height/2
+    # player_list = pygame.sprite.Group()
+    # player_list.add(player)
+
+    eloc = []
+    eloc = [300, 0]
+    enemy = Level.bad(1, eloc)
 
     ground_list = Level.ground(1, GLOC, TX, TY)
     plat_list = Level.platform(1, TX, TY)
@@ -175,29 +290,6 @@ def main():
     pygame.display.set_icon(ICON)
     pygame.display.flip()
 
-    def strip_from_sheet(sheet, rows, cols):
-            r = sheet.get_rect()
-            img_width = r.w/cols
-            img_height = r.h/rows
-
-            frames = []
-            for row in range(rows):
-                for col in range(cols):
-                    rect = pygame.Rect(col*img_width, row*img_height, img_width, img_height)
-                    frames.append(sheet.subsurface(rect))
-            return frames
-
-    arthurPendragonFrames = strip_from_sheet(ARTHUR_PENDRAGON, 6, 8)
-    dimensions = arthurPendragonFrames[0].get_rect()
-    dimensions = (int(dimensions.w*SCALING), int(dimensions.h*SCALING))
-    for i in range(len(arthurPendragonFrames)):
-        arthurPendragonFrames[i] = pygame.transform.scale(
-                                arthurPendragonFrames[i],
-                                dimensions)
-
-    player = Player(SCREEN, SCREENX/2, SCREENY/2, arthurPendragonFrames)
-    player_list = pygame.sprite.Group()
-    player_list.add(player)
 
     '''
     Main Loop
@@ -205,17 +297,20 @@ def main():
     while running:
         pressed = pygame.key.get_pressed()
         if pressed[pygame.K_LEFT]:
-            player.x-=player.velx
+            player.rect.x-=player.velx
         if pressed[pygame.K_RIGHT]:
-            player.x+=player.velx
+            player.rect.x+=player.velx
         if pressed[pygame.K_LEFT] and pressed[pygame.K_LSHIFT]:
+            DWELL = 2
             player.velx = RUN_SPEED
-            player.x-=player.velx
+            player.rect.x-=player.velx
         if pressed[pygame.K_RIGHT] and pressed[pygame.K_LSHIFT]:
+            DWELL = 2
             player.velx = RUN_SPEED
-            player.x+=player.velx
+            player.rect.x+=player.velx
         if pressed[pygame.K_SPACE]:
-            player.y-=JUMP_HEIGHT
+            DWELL = 5
+            player.rect.y-=JUMP_HEIGHT
             player.velx = WALK_SPEED
 
         for event in pygame.event.get():  
@@ -264,13 +359,17 @@ def main():
             frame_set_start = set_index*4
             frame_set_end = frame_set_start+3
 
-        # SCREEN.fill(WHITE)
         SCREEN.blit(BACKDROP, BACKDROPBOX)
-
-        player.draw()
-        player.gravity()
         player.update() 
         player.advanceImage()
+        player.draw()
+        player.gravity()
+        # for enemy in enemy_list
+        enemy.update() 
+        # enemy.advanceImage()
+        enemy.move()
+        enemy.draw()
+        enemy.gravity()
 
         ground_list.draw(SCREEN)
         plat_list.draw(SCREEN)
